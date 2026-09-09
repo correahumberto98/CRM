@@ -44,6 +44,7 @@ from contacts.serializer import (
     CreateContactSerializer,
 )
 from contacts.services.account_link import link_primary_account
+from contacts.services.deal_values import contact_deal_values
 from contacts.sorting import order_contacts
 from contacts.tasks import send_email_to_assigned_user
 from tasks.serializer import TaskSerializer
@@ -145,6 +146,14 @@ class ContactsListView(APIView, LimitOffsetPagination):
             queryset.distinct(), self.request, view=self
         )
         contacts = ContactSerializer(results_contact, many=True).data
+        if params.get("include_deal_values") == "true":
+            values = contact_deal_values(
+                self.request.profile,
+                self.request.user,
+                [contact.id for contact in results_contact],
+            )
+            for contact in contacts:
+                contact["deal_values"] = values.get(str(contact["id"]), [])
         if results_contact:
             offset = queryset.filter(id__gte=results_contact[-1].id).count()
             if offset == queryset.count():

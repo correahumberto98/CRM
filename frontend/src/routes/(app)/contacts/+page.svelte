@@ -13,7 +13,7 @@
   let clock = $state(Date.now());
   import PageHeader from '$lib/v2/components/PageHeader.svelte';
   import FilterBar from '$lib/v2/components/FilterBar.svelte';
-  import { count, relativeDays } from '$lib/v2/format.js';
+  import { count, relativeDays, money } from '$lib/v2/format.js';
   import { Plus } from '@lucide/svelte';
 
   /** @type {{ data: any }} */
@@ -499,38 +499,29 @@
               <dl>
                 <dt>Phone</dt>
                 <dd>{contact.phone || '—'}</dd>
-                <dt>Email</dt>
-                <dd>{contact.email || '—'}</dd>
-                <dt>Source</dt>
-                <dd>{contact.source_label || '—'}</dd>
-                <dt>Owner</dt>
-                <dd>{cell(contact, 'owner')}</dd>
-                <dt>Channel</dt>
-                <dd>{contact.preferred_communication_channel_label || '—'}</dd>
+                {#if contact.email}
+                  <dt>Email</dt>
+                  <dd>{contact.email}</dd>
+                {/if}
+                {#if contact.owner}
+                  <dt>Owner</dt>
+                  <dd>{cell(contact, 'owner')}</dd>
+                {/if}
+                {#if contact.deal_values.length}
+                  <dt>Value</dt>
+                  <dd>
+                    {#each contact.deal_values as value}
+                      <div>
+                        {value.amount === null
+                          ? 'Not set'
+                          : value.currency
+                            ? `${money(value.amount, value.currency)} ${value.currency}`
+                            : `${count(value.amount)} (currency not set)`}
+                      </div>
+                    {/each}
+                  </dd>
+                {/if}
               </dl>
-              {#if contact.do_not_call}<p class="v2-sub">Do not call</p>{/if}
-              {#if !contact.is_active}<p class="v2-sub">Inactive</p>{/if}
-              <a class="v2-btn" href={resolve(`/contacts/${contact.id}/edit`)}>Edit contact</a>
-              <label class="card-stage-picker"
-                >Stage
-                <select
-                  aria-label={`Stage for ${contact.name}`}
-                  value={stage.value}
-                  disabled={!!movingContact}
-                  onchange={(event) => {
-                    const target = event.currentTarget.value;
-                    event.currentTarget.value = stage.value;
-                    if (target !== stage.value) void moveContact(contact.id, target);
-                  }}
-                >
-                  {#if stage.value === 'UNASSIGNED'}<option value="UNASSIGNED" disabled
-                      >No stage</option
-                    >{/if}
-                  {#each data.board.filter((item) => item.value !== 'UNASSIGNED') as option}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-              </label>
               <div class="card-dates">
                 <span
                   class="stage-time"
@@ -539,7 +530,6 @@
                     : 'Stage entry time was not recorded for this older contact'}
                   >{stageDuration(contact.stage_entered_at, clock)}</span
                 >
-                <time datetime={contact.created_at}>Created {exactTime(contact.created_at)}</time>
               </div>
             </article>
           {:else}<p class="v2-sub">No contacts on this page.</p>{/each}
@@ -705,20 +695,6 @@
     opacity: 0.6;
     cursor: progress;
   }
-  .card-stage-picker {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    font-size: 12px;
-  }
-  .card-stage-picker select {
-    min-width: 0;
-    max-width: 100%;
-    font: inherit;
-    padding: 4px;
-  }
-
   .contact-grid .drag-source {
     background: #eff6ff;
     opacity: 0.5;

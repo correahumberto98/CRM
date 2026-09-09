@@ -118,6 +118,7 @@ function toRow(contact) {
     is_active: contact.is_active !== false,
     owner: owners.length ? profileName(owners[0]) : null,
     owner_count: owners.length,
+    deal_values: contact.deal_values ?? [],
     created_at: contact.created_at,
     created_by_email: contact.created_by_email ?? null,
     stage_entered_at: contact.stage_entered_at ?? null,

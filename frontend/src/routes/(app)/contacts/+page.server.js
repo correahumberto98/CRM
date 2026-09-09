@@ -64,6 +64,7 @@ export async function load({ cookies, url, locals }) {
             );
             const query = new URLSearchParams(params);
             query.set('stage', stage.value);
+            query.set('include_deal_values', 'true');
             query.set('limit', String(pageSize));
             query.set('offset', String(stageOffset));
             const response = await listContacts({ cookies }, query);
