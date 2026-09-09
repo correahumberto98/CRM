@@ -2,6 +2,8 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
+  import { stageDuration, exactTime } from '$lib/v2/contact-time.js';
+  let clock = $state(Date.now());
   import PageHeader from '$lib/v2/components/PageHeader.svelte';
   import FilterBar from '$lib/v2/components/FilterBar.svelte';
   import { count, relativeDays } from '$lib/v2/format.js';
@@ -33,6 +35,9 @@
   let configuring = $state(false);
   const storageKey = 'crm.contacts.columns.v1';
   onMount(() => {
+    const timer = setInterval(() => {
+      clock = Date.now();
+    }, 60000);
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
       if (Array.isArray(saved)) {
@@ -42,6 +47,7 @@
     } catch {
       /* Browser storage is optional. */
     }
+    return () => clearInterval(timer);
   });
   /** @param {string[]} next */
   function saveColumns(next) {
@@ -172,6 +178,16 @@
               {#if contact.do_not_call}<p class="v2-sub">Do not call</p>{/if}
               {#if !contact.is_active}<p class="v2-sub">Inactive</p>{/if}
               <a class="v2-btn" href={resolve(`/contacts/${contact.id}/edit`)}>Edit contact</a>
+              <div class="card-dates">
+                <span
+                  class="stage-time"
+                  title={contact.stage_entered_at
+                    ? `Stage entered: ${exactTime(contact.stage_entered_at)}`
+                    : 'Stage entry time was not recorded for this older contact'}
+                  >{stageDuration(contact.stage_entered_at, clock)}</span
+                >
+                <time datetime={contact.created_at}>Created {exactTime(contact.created_at)}</time>
+              </div>
             </article>
           {:else}<p class="v2-sub">No contacts on this page.</p>{/each}
           <footer>
@@ -244,6 +260,24 @@
 </div>
 
 <style>
+  .card-dates {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    margin-top: 16px;
+    text-align: right;
+    font-size: 11px;
+    color: #666;
+  }
+  .stage-time {
+    color: #a94312;
+    background: #fff0e5;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-weight: 600;
+  }
+
   .view-toolbar,
   .view-toolbar nav,
   .pagination {

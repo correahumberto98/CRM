@@ -2,6 +2,7 @@ import json
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -17,6 +18,7 @@ from rest_framework.views import APIView
 
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.models import (
+    Activity,
     Attachments,
     Comment,
     CustomFieldDefinition,
@@ -58,7 +60,7 @@ class ContactsListView(APIView, LimitOffsetPagination):
             # a page that says "most recent first" was shuffling people. The
             # model's own Meta.ordering is `-created_at`; this now agrees.
             .order_by("-created_at")
-            .select_related("account")
+            .select_related("account", "created_by")
             .prefetch_related("account_contacts", "assigned_to__user", "teams", "tags")
         )
         if not is_org_admin(self.request.profile):
@@ -203,6 +205,7 @@ class ContactsListView(APIView, LimitOffsetPagination):
             )
         },
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         params = request.data
         contact_serializer = CreateContactSerializer(data=params, request_obj=request)
@@ -389,6 +392,7 @@ class ContactDetailView(APIView):
             )
         },
     )
+    @transaction.atomic
     def put(self, request, pk, format=None):
         data = request.data
         contact_obj = self.get_object(pk=pk)
@@ -503,7 +507,31 @@ class ContactDetailView(APIView):
         context = {}
         contact_obj = self.get_object(pk)
         self.assert_contact_access(contact_obj)
+        from contacts.signals import record
+
+        record(contact_obj, "VIEW", "Contact opened")
         context["contact_obj"] = ContactSerializer(contact_obj).data
+        history = (
+            Activity.objects.filter(
+                org=contact_obj.org, entity_type="Contact", entity_id=contact_obj.id
+            )
+            .select_related("user__user")
+            .order_by("-created_at", "-id")
+        )
+        context["history"] = [
+            {
+                "id": str(entry.id),
+                "action": entry.action,
+                "description": entry.description,
+                "created_at": entry.created_at,
+                "actor": entry.metadata.get("actor")
+                or (entry.user.user.email if entry.user else "Unknown / System"),
+                "resource": entry.metadata.get("resource"),
+                "changes": entry.metadata.get("changes", {}),
+            }
+            for entry in history
+        ]
+
         assigned_data = []
         for each in contact_obj.assigned_to.all():
             assigned_dict = {}
@@ -607,6 +635,7 @@ class ContactDetailView(APIView):
             )
         },
     )
+    @transaction.atomic
     def delete(self, request, pk, format=None):
         self.object = self.get_object(pk)
         # Deliberately narrower than `assert_contact_access`: an assignee may
@@ -645,6 +674,7 @@ class ContactDetailView(APIView):
             )
         },
     )
+    @transaction.atomic
     def post(self, request, pk, **kwargs):
         params = request.data
         context = {}
@@ -728,6 +758,7 @@ class ContactDetailView(APIView):
             )
         },
     )
+    @transaction.atomic
     def patch(self, request, pk, format=None):
         """Handle partial updates to a contact."""
         data = request.data
@@ -833,6 +864,7 @@ class ContactCommentView(APIView):
             )
         },
     )
+    @transaction.atomic
     def put(self, request, pk, format=None):
         params = request.data
         obj = self.get_object(pk)
@@ -871,6 +903,7 @@ class ContactCommentView(APIView):
             )
         },
     )
+    @transaction.atomic
     def patch(self, request, pk, format=None):
         """Handle partial updates to a comment."""
         params = request.data
@@ -908,6 +941,7 @@ class ContactCommentView(APIView):
             )
         },
     )
+    @transaction.atomic
     def delete(self, request, pk, format=None):
         self.object = self.get_object(pk)
         if is_org_admin(request.profile) or request.profile == self.object.commented_by:
@@ -942,6 +976,7 @@ class ContactAttachmentView(APIView):
             )
         },
     )
+    @transaction.atomic
     def delete(self, request, pk, format=None):
         # Two defects in one line, both proven against a running server:
         #

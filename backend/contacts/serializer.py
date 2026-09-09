@@ -17,6 +17,9 @@ from contacts.models import Contact
 class ContactSerializer(serializers.ModelSerializer):
     """Serializer for reading Contact data"""
 
+    created_by_email = serializers.CharField(
+        source="created_by.email", read_only=True, default=None
+    )
     name = serializers.CharField(read_only=True)
     source_label = serializers.CharField(source="get_source_display", read_only=True)
     stage_label = serializers.CharField(source="get_stage_display", read_only=True)
@@ -100,6 +103,8 @@ class ContactSerializer(serializers.ModelSerializer):
             # System
             "created_by",
             "created_at",
+            "created_by_email",
+            "stage_entered_at",
             "updated_at",
             "is_active",
             "org",

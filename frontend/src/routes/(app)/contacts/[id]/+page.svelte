@@ -1,4 +1,5 @@
 <script>
+  import { exactTime } from '$lib/v2/contact-time.js';
   import { resolve } from '$app/paths';
   /**
    * A person, and everything that person is involved in.
@@ -116,7 +117,7 @@
     const parts = [];
     if (e.type === 'file') parts.push('Attached');
     if (e.by) parts.push(e.by);
-    parts.push(relativeDays(e.at));
+    parts.push(exactTime(e.at));
     return parts.join(' · ');
   }
 
@@ -209,6 +210,14 @@
   <div class="v2-main">
     <div class="v2-scroll">
       <div class="v2-pad" style="padding-top:16px;padding-bottom:32px">
+        <div class="v2-card" style="padding:14px;margin-bottom:20px">
+          <div><strong>Created:</strong> {exactTime(contact.created_at)}</div>
+          <div><strong>Created by:</strong> {contact.created_by_email || 'Not recorded'}</div>
+          <div>
+            <strong>Stage entered:</strong>
+            {contact.stage_entered_at ? exactTime(contact.stage_entered_at) : 'Not recorded'}
+          </div>
+        </div>
         {#if headline}
           <div style="margin-bottom:20px">
             <NextAction
@@ -334,7 +343,7 @@
         {/if}
 
         <div class="act-head">
-          <div class="v2-label">Activity</div>
+          <div class="v2-label">Contact history</div>
           {#if hasFiles}
             <!-- Only real kinds. There is no calls/emails/meetings split because
                  there are no such records to split on. -->
@@ -434,7 +443,13 @@
                       {e.body}
                     </a>
                   {:else}
-                    <div class="tl-text" class:note={e.type === 'note'}>{e.body}</div>
+                    <div
+                      class="tl-text"
+                      style="white-space:pre-wrap"
+                      class:note={e.type === 'note'}
+                    >
+                      {e.body}
+                    </div>
                   {/if}
                   <div class="tl-meta">{metaFor(e)}</div>
                 </div>

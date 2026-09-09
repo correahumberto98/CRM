@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.db.models.functions import Lower
 from django.utils.translation import gettext_lazy as _
@@ -35,6 +35,8 @@ class Contact(AssignableMixin, BaseModel):
     stage = models.CharField(
         max_length=32, choices=CONTACT_STAGES, blank=True, null=True
     )
+    stage_entered_at = models.DateTimeField(null=True, blank=True, editable=False)
+
     preferred_communication_channel = models.CharField(
         max_length=16, choices=COMMUNICATION_CHANNELS, blank=True, null=True
     )
@@ -116,6 +118,13 @@ class Contact(AssignableMixin, BaseModel):
                 condition=Q(email__isnull=False) & ~Q(email=""),
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        # Keep the contact write and its audit entries in the same transaction.
+        with transaction.atomic():
+            if not self._state.adding:
+                type(self).objects.select_for_update().filter(pk=self.pk).first()
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return self.first_name

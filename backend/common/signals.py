@@ -86,18 +86,6 @@ def lead_post_delete(sender, instance, **kwargs):
     create_activity(instance, "DELETE", "Lead")
 
 
-# Contact signals
-@receiver(post_save, sender="contacts.Contact")
-def contact_post_save(sender, instance, created, **kwargs):
-    action = "CREATE" if created else "UPDATE"
-    create_activity(instance, action, "Contact")
-
-
-@receiver(post_delete, sender="contacts.Contact")
-def contact_post_delete(sender, instance, **kwargs):
-    create_activity(instance, "DELETE", "Contact")
-
-
 # Opportunity signals
 @receiver(post_save, sender="opportunity.Opportunity")
 def opportunity_post_save(sender, instance, created, **kwargs):

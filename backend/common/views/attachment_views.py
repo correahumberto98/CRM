@@ -113,6 +113,16 @@ class AttachmentDownloadView(APIView):
         if not attachment.attachment:
             raise Http404("That attachment has no file.")
         attachment.attachment.open("rb")
+        from contacts.signals import record, related_contact
+
+        contact = related_contact(attachment)
+        if contact:
+            record(
+                contact,
+                "VIEW",
+                "Attachment download requested",
+                {"File": {"before": None, "after": attachment.file_name}},
+            )
         return FileResponse(
             attachment.attachment,
             as_attachment=True,

@@ -117,6 +117,8 @@ function toRow(contact) {
     owner: owners.length ? profileName(owners[0]) : null,
     owner_count: owners.length,
     created_at: contact.created_at,
+    created_by_email: contact.created_by_email ?? null,
+    stage_entered_at: contact.stage_entered_at ?? null,
     updated_at: contact.updated_at ?? null
   };
 }
@@ -216,33 +218,38 @@ export async function getContact({ cookies }, id) {
 }
 
 /**
- * The record's real events, newest first: notes, files, and creation.
- *
- * Three event KINDS, all backed by rows that exist. A note is a `Comment`, a
- * file is an `Attachments`, and the record always has its own creation. The old
- * shape read `response.comments` alone, so every file uploaded against a contact
- * was dropped from the page it should have appeared on. Nothing records status
- * changes or calls/emails/meetings on a Contact, so those are not invented here
- * (the same discipline as `leads.js`).
- *
- * `ContactDetailView.get` returns `comments` and `attachments` as siblings, and
- * an attachment's `created_by` is a bare user id rather than a nested user, so a
- * file's author is left unnamed rather than printing an id, the note author,
- * which arrives as a nested profile, is shown.
- *
+ * Merge the audit trail with legacy notes, files and creation metadata.
+ * Avoid duplicate events for resources already covered by detailed history.
  * @param {any} response
  */
 function buildContactActivity(response) {
   /** @type {Array<{id:string,type:'note'|'file'|'status',at:string,by:string|null,body:string,href?:string|null}>} */
-  const events = (response.comments ?? []).map((/** @type {any} */ c) => ({
-    id: `note-${c.id}`,
-    type: 'note',
-    at: c.commented_on,
-    by: c.commented_by?.user_details?.email || null,
-    body: c.comment
-  }));
+  const events = (response.comments ?? [])
+    .filter(
+      (/** @type {any} */ note) =>
+        !(response.history ?? []).some(
+          (/** @type {any} */ entry) =>
+            entry.resource?.type === 'Note' && entry.resource.id === note.id
+        )
+    )
+    .map((/** @type {any} */ c) => ({
+      id: `note-${c.id}`,
+      type: 'note',
+      at: c.commented_on,
+      by: c.commented_by?.user_details?.email || null,
+      body: c.comment
+    }));
 
   for (const a of response.attachments ?? []) {
+    if (
+      (response.history ?? []).some(
+        (/** @type {any} */ entry) =>
+          entry.resource?.type === 'Attachment' &&
+          entry.resource.id === a.id &&
+          entry.description === 'Attachment added'
+      )
+    )
+      continue;
     events.push({
       id: `file-${a.id}`,
       type: 'file',
@@ -253,14 +260,42 @@ function buildContactActivity(response) {
     });
   }
 
+  for (const entry of response.history ?? []) {
+    const changes = Object.entries(entry.changes ?? {}).map(([field, change]) => {
+      const detail = /** @type {any} */ (change);
+      const show = (/** @type {any} */ value) => {
+        if (value === null || value === '' || (Array.isArray(value) && !value.length)) return '—';
+        if (Array.isArray(value)) return value.map((item) => item?.name || String(item)).join(', ');
+        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+      };
+      return `${detail.label || field}: ${show(detail.before_display ?? detail.before)} → ${show(detail.after_display ?? detail.after)}`;
+    });
+    const file =
+      entry.resource?.type === 'Attachment' && entry.description === 'Attachment added'
+        ? (response.attachments ?? []).find(
+            (/** @type {any} */ file) => file.id === entry.resource.id
+          )
+        : null;
+    events.push({
+      id: `history-${entry.id}`,
+      type: file ? 'file' : entry.resource?.type === 'Note' ? 'note' : 'status',
+      at: entry.created_at,
+      by: entry.actor,
+      href: file ? attachmentHref(file.id) : null,
+      body: [entry.description || entry.action, ...changes].join('\n')
+    });
+  }
   const contact = response.contact_obj;
-  if (contact?.created_at) {
+  if (
+    contact?.created_at &&
+    !(response.history ?? []).some((/** @type {any} */ entry) => entry.action === 'CREATE')
+  ) {
     events.push({
       id: `created-${contact.id}`,
       type: 'status',
       at: contact.created_at,
-      by: null,
-      body: 'Contact added'
+      by: contact.created_by_email || 'Creator unavailable',
+      body: 'Contact created (historical record)'
     });
   }
 
