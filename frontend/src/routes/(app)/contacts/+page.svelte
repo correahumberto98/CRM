@@ -3,6 +3,9 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   let dragging = $state('');
+  let insertionIndex = $state(-1);
+  /** @type {HTMLCanvasElement | null} */
+  let dragPreview = null;
   let suppressSort = false;
   import { onMount } from 'svelte';
   import { stageDuration, exactTime } from '$lib/v2/contact-time.js';
@@ -78,7 +81,10 @@
       /* Stored layout is optional. */
     }
     ready = true;
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      dragPreview?.remove();
+    };
   });
   /** @param {string[]} next */
   function saveColumns(next) {
@@ -108,21 +114,109 @@
   /** @param {DragEvent} event @param {string} key */
   function startColumnDrag(event, key) {
     dragging = key;
+    insertionIndex = selected.indexOf(key);
     suppressSort = true;
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', key);
+      createDragPreview(event, key);
     }
   }
   /** @param {DragEvent} event @param {string} key */
-  function dropColumn(event, key) {
+  function createDragPreview(event, key) {
+    dragPreview?.remove();
+    const header = /** @type {HTMLElement} */ (event.currentTarget).closest('th');
+    const table = header?.closest('table');
+    const width = Math.min(widths[key] ?? 160, 480);
+    const height = Math.min(table?.getBoundingClientRect().height ?? 200, 480);
+    const canvas = document.createElement('canvas');
+    canvas.width = width + 40;
+    canvas.height = height + 40;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.3)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(20, 20, width, height);
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#eaf3ff';
+    ctx.fillRect(20, 20, width, 42);
+    ctx.strokeStyle = '#3b82f6';
+    ctx.strokeRect(20.5, 20.5, width - 1, height - 1);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(30, 20, width - 20, height);
+    ctx.clip();
+    const font = getComputedStyle(document.body).fontFamily;
+    ctx.font = `600 13px ${font}`;
+    ctx.fillStyle = '#1e3a5f';
+    ctx.fillText(fields.find((field) => field[0] === key)?.[1] ?? key, 34, 46);
+    ctx.font = `14px ${font}`;
+    ctx.fillStyle = '#334155';
+    for (let index = 0; index < data.contacts.length && 84 + index * 44 < height + 20; index++) {
+      ctx.fillText(
+        String(cell(data.contacts[index], key)).replace(/\s+/g, ' '),
+        34,
+        84 + index * 44
+      );
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.moveTo(20, 104 + index * 44);
+      ctx.lineTo(width + 20, 104 + index * 44);
+      ctx.stroke();
+    }
+    ctx.restore();
+    canvas.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none;';
+    document.body.appendChild(canvas);
+    dragPreview = canvas;
+    event.dataTransfer?.setDragImage(
+      canvas,
+      Math.min(
+        width / 2 + 20,
+        Math.max(20, event.clientX - (header?.getBoundingClientRect().left ?? event.clientX) + 20)
+      ),
+      36
+    );
+  }
+  /** @param {DragEvent} event */
+  function previewPosition(event) {
+    if (!dragging) return;
     event.preventDefault();
-    if (dragging && selected.includes(dragging))
-      moveColumn(dragging, selected.indexOf(key) - selected.indexOf(dragging));
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    const region = /** @type {HTMLElement} */ (event.currentTarget);
+    const headers = Array.from(region.querySelectorAll('th[data-column]'));
+    const index = headers.findIndex((header) => {
+      const rect = header.getBoundingClientRect();
+      return event.clientX < rect.left + rect.width / 2;
+    });
+    insertionIndex = index < 0 ? selected.length : index;
+    const bounds = region.getBoundingClientRect();
+    if (event.clientX > bounds.right - 30) region.scrollLeft += 18;
+    else if (event.clientX < bounds.left + 30) region.scrollLeft -= 18;
+  }
+  /** @param {DragEvent} event */
+  function dropColumn(event) {
+    if (!dragging) return;
+    previewPosition(event);
+    const source = selected.indexOf(dragging);
+    if (source >= 0 && insertionIndex >= 0) {
+      const next = selected.filter((key) => key !== dragging);
+      next.splice(insertionIndex > source ? insertionIndex - 1 : insertionIndex, 0, dragging);
+      saveColumns(next);
+    }
     finishDrag();
+  }
+  /** @param {DragEvent} event */
+  function leaveColumns(event) {
+    const region = /** @type {HTMLElement} */ (event.currentTarget);
+    if (!region.contains(/** @type {Node | null} */ (event.relatedTarget))) insertionIndex = -1;
   }
   function finishDrag() {
     dragging = '';
+    insertionIndex = -1;
+    dragPreview?.remove();
+    dragPreview = null;
     setTimeout(() => {
       suppressSort = false;
     }, 250);
@@ -364,6 +458,9 @@
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this overflow region to scroll the table.) -->
     <div
       class="contact-table-scroll"
+      ondragover={previewPosition}
+      ondrop={dropColumn}
+      ondragleave={leaveColumns}
       role="region"
       aria-label="Contact list, horizontally scrollable"
       tabindex="0"
@@ -379,6 +476,12 @@
             {#each orderedFields as [key, label] (key)}
               <th
                 scope="col"
+                data-column={key}
+                class:drag-source={dragging === key}
+                class:insert-before={dragging !== '' && insertionIndex === selected.indexOf(key)}
+                class:insert-after={dragging !== '' &&
+                  insertionIndex === selected.length &&
+                  selected.indexOf(key) === selected.length - 1}
                 aria-sort={page.url.searchParams.get('sort') === key
                   ? page.url.searchParams.get('direction') === 'desc'
                     ? 'descending'
@@ -393,10 +496,6 @@
                   onclick={() => sortBy(key)}
                   ondragstart={(event) => startColumnDrag(event, key)}
                   ondragend={finishDrag}
-                  ondragover={(event) => {
-                    if (dragging) event.preventDefault();
-                  }}
-                  ondrop={(event) => dropColumn(event, key)}
                   onkeydown={(event) => {
                     if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
                       event.preventDefault();
@@ -434,7 +533,15 @@
           {#each data.contacts as contact (contact.id)}
             <tr>
               {#each orderedFields as [key] (key)}
-                <td class="contact-cell" title={String(cell(contact, key))}>
+                <td
+                  class="contact-cell"
+                  title={String(cell(contact, key))}
+                  class:drag-source={dragging === key}
+                  class:insert-before={dragging !== '' && insertionIndex === selected.indexOf(key)}
+                  class:insert-after={dragging !== '' &&
+                    insertionIndex === selected.length &&
+                    selected.indexOf(key) === selected.length - 1}
+                >
                   {#if key === 'name'}<a
                       class="v2-row-link v2-table-primary"
                       href={resolve(`/contacts/${contact.id}`)}>{contact.name}</a
@@ -473,6 +580,17 @@
 </div>
 
 <style>
+  .contact-grid .drag-source {
+    background: #eff6ff;
+    opacity: 0.5;
+  }
+  .contact-grid .insert-before {
+    box-shadow: inset 3px 0 0 #2563eb;
+  }
+  .contact-grid .insert-after {
+    box-shadow: inset -3px 0 0 #2563eb;
+  }
+
   .column-setting {
     border: 1px solid var(--v2-line);
     border-radius: 6px;
