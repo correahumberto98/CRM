@@ -4,7 +4,6 @@
   import { onMount } from 'svelte';
   import PageHeader from '$lib/v2/components/PageHeader.svelte';
   import FilterBar from '$lib/v2/components/FilterBar.svelte';
-  import Avatar from '$lib/v2/components/Avatar.svelte';
   import { count, relativeDays } from '$lib/v2/format.js';
   import { Plus } from '@lucide/svelte';
 
@@ -156,7 +155,7 @@
           {#each stage.contacts as contact (contact.id)}
             <article class="contact-card">
               <a class="card-name" href={resolve(`/contacts/${contact.id}`)}
-                ><Avatar name={contact.name} size={28} /><strong>{contact.name}</strong></a
+                ><strong>{contact.name}</strong></a
               >
               <dl>
                 <dt>Phone</dt>
