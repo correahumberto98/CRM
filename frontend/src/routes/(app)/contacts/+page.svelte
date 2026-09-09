@@ -126,9 +126,8 @@
   function createDragPreview(event, key) {
     dragPreview?.remove();
     const header = /** @type {HTMLElement} */ (event.currentTarget).closest('th');
-    const table = header?.closest('table');
     const width = Math.min(widths[key] ?? 160, 480);
-    const height = Math.min(table?.getBoundingClientRect().height ?? 200, 480);
+    const height = 42;
     const canvas = document.createElement('canvas');
     canvas.width = width + 40;
     canvas.height = height + 40;
@@ -152,20 +151,6 @@
     ctx.font = `600 13px ${font}`;
     ctx.fillStyle = '#1e3a5f';
     ctx.fillText(fields.find((field) => field[0] === key)?.[1] ?? key, 34, 46);
-    ctx.font = `14px ${font}`;
-    ctx.fillStyle = '#334155';
-    for (let index = 0; index < data.contacts.length && 84 + index * 44 < height + 20; index++) {
-      ctx.fillText(
-        String(cell(data.contacts[index], key)).replace(/\s+/g, ' '),
-        34,
-        84 + index * 44
-      );
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.beginPath();
-      ctx.moveTo(20, 104 + index * 44);
-      ctx.lineTo(width + 20, 104 + index * 44);
-      ctx.stroke();
-    }
     ctx.restore();
     canvas.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none;';
     document.body.appendChild(canvas);
