@@ -18,6 +18,7 @@
       state: '',
       preferred_communication_channel: '',
       description: '',
+      assigned_to: '',
       ...(data.form ?? {}),
       ...(result?.values ?? {})
     }))
@@ -97,6 +98,28 @@
         {#each data.stages ?? [] as option}<option value={option.value}>{option.label}</option
           >{/each}
       </select>
+    </div>
+    <div class="v2-field">
+      <label for="contact-owner">Contact Owner</label>
+      <select
+        id="contact-owner"
+        name="assigned_to"
+        class="v2-input"
+        bind:value={values.assigned_to}
+      >
+        <option value="">Unassigned</option>
+        {#each data.owners ?? [] as owner}
+          <option value={owner.id}>{owner.name}</option>
+        {/each}
+      </select>
+      {#if editing}
+        <input type="hidden" name="assigned_to_original" value={data.form?.assigned_to ?? ''} />
+      {/if}
+      {#if editing && data.server?.owner_count > 1}
+        <p class="v2-sub">
+          This contact has multiple owners. Choosing another owner replaces the current assignments.
+        </p>
+      {/if}
     </div>
     {#each addressFields as field (field.key)}
       <div class="v2-field">
