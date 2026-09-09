@@ -40,8 +40,12 @@ This tracks persisted CRM operations, not external phone calls or emails merely 
 
 ## List column order and fixed widths
 
-Edit columns now presents selected columns in their display order, with left/right controls and a width input in pixels. Header edges support pointer/touch resizing, left/right arrow keys in 10-pixel steps, and double-click to fit the current content. Selection order and widths persist in local browser storage. Existing column selections are preserved.
+Edit columns only selects visible fields. Drag a column header name onto another header to insert it at that position; the order is saved in this browser. Alt + left/right arrow keys on the header provide a keyboard alternative. Header edges retain drag resizing, arrow-key width adjustment and double-click to fit content; there are no numeric width controls in Edit columns. Existing column selections and saved widths are preserved.
 
 A newly displayed column is measured against its header and the currently loaded contact rows, then its width is saved. Loading another page or changing viewport size does not automatically resize it. Fit widths to content explicitly recalculates selected widths against the current page. Column widths have a 60-pixel minimum. Long content in manually narrowed cells is truncated with an ellipsis and remains accessible through its tooltip or by opening the contact.
 
 The contact list uses its own fixed-layout table styles instead of the app's mobile card transformation. Small screens retain the same column widths and use horizontal scrolling. Preferences are local to the browser and are not synchronized between devices.
+
+## Sorting by column
+
+Click a column name to sort ascending; click it again to sort descending. The arrow and aria-sort indicate the direction. Dragging a header reorders columns without triggering sorting. Sorting is applied by the API before pagination and within the existing filters/access permissions; switching sort starts at the first page. Text is case-insensitive, dates sort chronologically, and blank values appear last. Phone numbers and ZIP codes are text identifiers. Catalog columns sort by their displayed labels. Multiple owners are represented by the first email alphabetically; account sorting uses the primary account or first linked account alphabetically, then the free-text organization. Unknown sorting keys fall back to creation order.

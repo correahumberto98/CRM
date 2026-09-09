@@ -30,6 +30,10 @@ export async function load({ cookies, url, locals }) {
   if (!includeInactive) params.set('is_active', 'true');
 
   const view = url.searchParams.get('view') === 'pipeline' ? 'pipeline' : 'list';
+  if (view === 'list') {
+    params.set('sort', url.searchParams.get('sort') ?? '');
+    params.set('direction', url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc');
+  }
   const pageSize = 25;
   const offset = Math.max(
     0,

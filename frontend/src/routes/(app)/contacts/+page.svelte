@@ -1,6 +1,9 @@
 <script>
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
+  let dragging = $state('');
+  let suppressSort = false;
   import { onMount } from 'svelte';
   import { stageDuration, exactTime } from '$lib/v2/contact-time.js';
   let clock = $state(Date.now());
@@ -96,9 +99,42 @@
   function moveColumn(key, direction) {
     const next = [...selected];
     const index = next.indexOf(key);
-    if (index < 0 || index + direction < 0 || index + direction >= next.length) return;
-    [next[index], next[index + direction]] = [next[index + direction], next[index]];
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= next.length) return;
+    next.splice(index, 1);
+    next.splice(target, 0, key);
     saveColumns(next);
+  }
+  /** @param {DragEvent} event @param {string} key */
+  function startColumnDrag(event, key) {
+    dragging = key;
+    suppressSort = true;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', key);
+    }
+  }
+  /** @param {DragEvent} event @param {string} key */
+  function dropColumn(event, key) {
+    event.preventDefault();
+    if (dragging && selected.includes(dragging))
+      moveColumn(dragging, selected.indexOf(key) - selected.indexOf(dragging));
+    finishDrag();
+  }
+  function finishDrag() {
+    dragging = '';
+    setTimeout(() => {
+      suppressSort = false;
+    }, 250);
+  }
+  /** @param {string} key */
+  function sortBy(key) {
+    if (suppressSort) return;
+    const direction =
+      page.url.searchParams.get('sort') === key && page.url.searchParams.get('direction') !== 'desc'
+        ? 'desc'
+        : 'asc';
+    goto(link({ sort: key, direction, offset: null }));
   }
   function saveWidths() {
     try {
@@ -228,7 +264,7 @@
   <fieldset id="contact-columns" class="columns-picker">
     <legend>Fields shown in the list</legend>
     <p class="v2-sub">
-      Choose fields, move them left or right, and set their widths. Saved in this browser.
+      Choose the fields to show. Drag column headers to change their order. Saved in this browser.
     </p>
     <div class="column-options">
       {#each pickerFields as [key, label] (key)}
@@ -241,31 +277,6 @@
               onchange={() => toggleColumn(key)}
             />{label}</label
           >
-          {#if selected.includes(key)}
-            <div class="column-controls">
-              <button
-                class="v2-btn"
-                aria-label={`Move ${label} left`}
-                disabled={selected.indexOf(key) === 0}
-                onclick={() => moveColumn(key, -1)}>←</button
-              >
-              <button
-                class="v2-btn"
-                aria-label={`Move ${label} right`}
-                disabled={selected.indexOf(key) === selected.length - 1}
-                onclick={() => moveColumn(key, 1)}>→</button
-              >
-              <label class="width-label"
-                ><input
-                  aria-label={`${label} width in pixels`}
-                  type="number"
-                  min="60"
-                  value={widths[key] ?? 160}
-                  onchange={(event) => resizeColumn(key, Number(event.currentTarget.value))}
-                />px</label
-              >
-            </div>
-          {/if}
         </div>
       {/each}
     </div>
@@ -282,7 +293,9 @@
   people={data.people}
   tags={data.tags}
   meId={data.meId}
-  meta="Most recently added first"
+  meta={data.view === 'list' && page.url.searchParams.get('sort')
+    ? `Sorted by ${fields.find(([key]) => key === page.url.searchParams.get('sort'))?.[1] ?? 'column'} · ${page.url.searchParams.get('direction') === 'desc' ? 'descending' : 'ascending'}`
+    : 'Most recently added first'}
 />
 
 <div class="v2-scroll">
@@ -346,7 +359,7 @@
     </div>
   {:else}
     <p class="v2-sub table-hint">
-      Drag a column's right edge to resize. Scroll horizontally to see more columns.
+      Click a header to sort; drag its name to reorder. Drag the right edge to resize.
     </p>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this overflow region to scroll the table.) -->
     <div
@@ -364,8 +377,39 @@
         <thead
           ><tr>
             {#each orderedFields as [key, label] (key)}
-              <th scope="col"
-                ><span title={label}>{label}</span>
+              <th
+                scope="col"
+                aria-sort={page.url.searchParams.get('sort') === key
+                  ? page.url.searchParams.get('direction') === 'desc'
+                    ? 'descending'
+                    : 'ascending'
+                  : 'none'}
+              >
+                <button
+                  class="column-heading"
+                  class:dragging={dragging === key}
+                  draggable="true"
+                  title="Click to sort; drag to reorder. Alt + arrow keys also move the column."
+                  onclick={() => sortBy(key)}
+                  ondragstart={(event) => startColumnDrag(event, key)}
+                  ondragend={finishDrag}
+                  ondragover={(event) => {
+                    if (dragging) event.preventDefault();
+                  }}
+                  ondrop={(event) => dropColumn(event, key)}
+                  onkeydown={(event) => {
+                    if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                      event.preventDefault();
+                      moveColumn(key, event.key === 'ArrowLeft' ? -1 : 1);
+                    }
+                  }}
+                >
+                  {label}{page.url.searchParams.get('sort') === key
+                    ? page.url.searchParams.get('direction') === 'desc'
+                      ? ' ↓'
+                      : ' ↑'
+                    : ''}
+                </button>
                 <button
                   class="resize-handle"
                   aria-label={`Resize ${label}`}
@@ -435,19 +479,6 @@
     padding: 10px;
     min-width: 0;
   }
-  .column-controls {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .width-label input {
-    width: 76px;
-    min-width: 0;
-    border: 1px solid var(--v2-line);
-    border-radius: 4px;
-    padding: 5px;
-  }
   .table-hint {
     padding: 0 24px;
     font-size: 12px;
@@ -483,7 +514,16 @@
     font-weight: 600;
     color: var(--v2-slate);
   }
-  .contact-grid th span {
+  .column-heading {
+    width: 100%;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    cursor: grab;
+
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -502,6 +542,9 @@
   }
   .contact-grid a {
     color: inherit;
+  }
+  .column-heading.dragging {
+    opacity: 0.4;
   }
   .resize-handle {
     position: absolute;

@@ -84,7 +84,9 @@ function accountLink(contact) {
  * @param {any} contact
  */
 function toRow(contact) {
-  const owners = contact.assigned_to ?? [];
+  const owners = [...(contact.assigned_to ?? [])].sort((a, b) =>
+    profileName(a).toLowerCase().localeCompare(profileName(b).toLowerCase())
+  );
   const { account, other_accounts } = accountLink(contact);
   return {
     id: contact.id,

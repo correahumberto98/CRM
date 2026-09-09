@@ -61,7 +61,10 @@ class ContactSerializer(serializers.ModelSerializer):
         """
         return [
             {"id": str(account.id), "name": account.name}
-            for account in obj.account_contacts.all()
+            for account in sorted(
+                obj.account_contacts.all(),
+                key=lambda item: (item.name.lower(), str(item.pk)),
+            )
         ]
 
     class Meta:

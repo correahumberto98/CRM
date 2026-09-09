@@ -44,6 +44,7 @@ from contacts.serializer import (
     CreateContactSerializer,
 )
 from contacts.services.account_link import link_primary_account
+from contacts.sorting import order_contacts
 from contacts.tasks import send_email_to_assigned_user
 from tasks.serializer import TaskSerializer
 
@@ -135,6 +136,10 @@ class ContactsListView(APIView, LimitOffsetPagination):
         context["inactive_count"] = queryset.filter(is_active=False).distinct().count()
         if params.get("is_active") in ("true", "false"):
             queryset = queryset.filter(is_active=params.get("is_active") == "true")
+
+        queryset = order_contacts(
+            queryset, params.get("sort"), params.get("direction") == "desc"
+        )
 
         results_contact = self.paginate_queryset(
             queryset.distinct(), self.request, view=self
