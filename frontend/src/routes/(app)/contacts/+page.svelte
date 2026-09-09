@@ -33,6 +33,20 @@
   const defaults = ['name', 'phone', 'email', 'source_label', 'stage_label', 'owner'];
   let selected = $state([...defaults]);
   let configuring = $state(false);
+  let ready = $state(false);
+  /** @type {Record<string, number>} */
+  let widths = $state({});
+  let orderedFields = $derived(
+    selected
+      .map((key) => fields.find((field) => field[0] === key))
+      .filter((field) => field !== undefined)
+  );
+  let pickerFields = $derived([
+    ...orderedFields,
+    ...fields.filter(([key]) => !selected.includes(key))
+  ]);
+  let totalWidth = $derived(selected.reduce((sum, key) => sum + (widths[key] ?? 160), 120));
+  const widthKey = 'crm.contacts.widths.v1';
   const storageKey = 'crm.contacts.columns.v1';
   onMount(() => {
     const timer = setInterval(() => {
@@ -41,12 +55,26 @@
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
       if (Array.isArray(saved)) {
-        const valid = fields.map(([key]) => key).filter((key) => saved.includes(key));
+        const valid = [...new Set(saved.filter((key) => fields.some((field) => field[0] === key)))];
         if (valid.length) selected = valid;
       }
     } catch {
       /* Browser storage is optional. */
     }
+    try {
+      const savedWidths = JSON.parse(localStorage.getItem(widthKey) ?? '{}');
+      for (const [key] of fields) {
+        if (
+          typeof savedWidths?.[key] === 'number' &&
+          Number.isFinite(savedWidths[key]) &&
+          savedWidths[key] >= 60
+        )
+          widths[key] = savedWidths[key];
+      }
+    } catch {
+      /* Stored layout is optional. */
+    }
+    ready = true;
     return () => clearInterval(timer);
   });
   /** @param {string[]} next */
@@ -63,6 +91,82 @@
     saveColumns(
       selected.includes(key) ? selected.filter((value) => value !== key) : [...selected, key]
     );
+  }
+  /** @param {string} key @param {number} direction */
+  function moveColumn(key, direction) {
+    const next = [...selected];
+    const index = next.indexOf(key);
+    if (index < 0 || index + direction < 0 || index + direction >= next.length) return;
+    [next[index], next[index + direction]] = [next[index + direction], next[index]];
+    saveColumns(next);
+  }
+  function saveWidths() {
+    try {
+      localStorage.setItem(widthKey, JSON.stringify(widths));
+    } catch {
+      /* Keep session layout. */
+    }
+  }
+  /** @param {string} key @param {number} width */
+  function resizeColumn(key, width) {
+    if (!Number.isFinite(width)) return;
+    widths[key] = Math.max(60, Math.round(width));
+    saveWidths();
+  }
+  /** @param {string} key */
+  function fitColumn(key) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return 160;
+    context.font = '600 13px ' + getComputedStyle(document.body).fontFamily;
+    const label = fields.find((field) => field[0] === key)?.[1] ?? key;
+    let size = context.measureText(label).width;
+    context.font = '600 14px ' + getComputedStyle(document.body).fontFamily;
+    for (const contact of data.contacts) {
+      size = Math.max(
+        size,
+        context.measureText(String(cell(contact, key)).replace(/\s+/g, ' ')).width
+      );
+    }
+    return Math.max(96, Math.ceil(size) + 40);
+  }
+  $effect(() => {
+    if (!ready || data.view !== 'list') return;
+    let changed = false;
+    for (const key of selected) {
+      if (!widths[key]) {
+        widths[key] = fitColumn(key);
+        changed = true;
+      }
+    }
+    if (changed) saveWidths();
+  });
+  function fitVisible() {
+    for (const key of selected) widths[key] = fitColumn(key);
+    saveWidths();
+  }
+  /** @param {PointerEvent} event @param {string} key */
+  function startResize(event, key) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = /** @type {HTMLElement} */ (event.currentTarget);
+    const startX = event.clientX;
+    const startWidth = widths[key] ?? 160;
+    handle.setPointerCapture(event.pointerId);
+    const move = (/** @type {PointerEvent} */ e) => {
+      widths[key] = Math.max(60, Math.round(startWidth + e.clientX - startX));
+    };
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      handle.removeEventListener('lostpointercapture', end);
+      saveWidths();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('lostpointercapture', end);
   }
   /** @param {Record<string, string | null>} changes */
   function link(changes) {
@@ -123,20 +227,52 @@
 {#if configuring && data.view === 'list'}
   <fieldset id="contact-columns" class="columns-picker">
     <legend>Fields shown in the list</legend>
-    <p class="v2-sub">Choose at least one field. Saved in this browser.</p>
+    <p class="v2-sub">
+      Choose fields, move them left or right, and set their widths. Saved in this browser.
+    </p>
     <div class="column-options">
-      {#each fields as [key, label]}
-        <label
-          ><input
-            type="checkbox"
-            checked={selected.includes(key)}
-            disabled={selected.length === 1 && selected.includes(key)}
-            onchange={() => toggleColumn(key)}
-          />{label}</label
-        >
+      {#each pickerFields as [key, label] (key)}
+        <div class="column-setting">
+          <label
+            ><input
+              type="checkbox"
+              checked={selected.includes(key)}
+              disabled={selected.length === 1 && selected.includes(key)}
+              onchange={() => toggleColumn(key)}
+            />{label}</label
+          >
+          {#if selected.includes(key)}
+            <div class="column-controls">
+              <button
+                class="v2-btn"
+                aria-label={`Move ${label} left`}
+                disabled={selected.indexOf(key) === 0}
+                onclick={() => moveColumn(key, -1)}>←</button
+              >
+              <button
+                class="v2-btn"
+                aria-label={`Move ${label} right`}
+                disabled={selected.indexOf(key) === selected.length - 1}
+                onclick={() => moveColumn(key, 1)}>→</button
+              >
+              <label class="width-label"
+                ><input
+                  aria-label={`${label} width in pixels`}
+                  type="number"
+                  min="60"
+                  value={widths[key] ?? 160}
+                  onchange={(event) => resizeColumn(key, Number(event.currentTarget.value))}
+                />px</label
+              >
+            </div>
+          {/if}
+        </div>
       {/each}
     </div>
-    <button class="v2-btn" onclick={() => saveColumns([...defaults])}>Restore defaults</button>
+    <button class="v2-btn" onclick={() => saveColumns([...defaults])}
+      >Restore default columns</button
+    >
+    <button class="v2-btn" onclick={fitVisible}>Fit widths to content</button>
     <button class="v2-btn" onclick={() => (configuring = false)}>Done</button>
   </fieldset>
 {/if}
@@ -209,19 +345,52 @@
       {/each}
     </div>
   {:else}
-    <div class="v2-table-wrap">
-      <table class="v2-table">
+    <p class="v2-sub table-hint">
+      Drag a column's right edge to resize. Scroll horizontally to see more columns.
+    </p>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this overflow region to scroll the table.) -->
+    <div
+      class="contact-table-scroll"
+      role="region"
+      aria-label="Contact list, horizontally scrollable"
+      tabindex="0"
+    >
+      <table class="contact-grid" style:width={`${totalWidth}px`}>
+        <colgroup
+          >{#each orderedFields as [key]}<col style:width={`${widths[key] ?? 160}px`} />{/each}<col
+            style:width="120px"
+          /></colgroup
+        >
         <thead
-          ><tr
-            >{#each fields.filter(([key]) => selected.includes(key)) as [key, label]}<th>{label}</th
-              >{/each}<th>Actions</th></tr
-          ></thead
+          ><tr>
+            {#each orderedFields as [key, label] (key)}
+              <th scope="col"
+                ><span title={label}>{label}</span>
+                <button
+                  class="resize-handle"
+                  aria-label={`Resize ${label}`}
+                  title="Drag to resize; arrow keys adjust width; double-click to fit content"
+                  onpointerdown={(event) => startResize(event, key)}
+                  ondblclick={() => resizeColumn(key, fitColumn(key))}
+                  onkeydown={(event) => {
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                      event.preventDefault();
+                      resizeColumn(
+                        key,
+                        (widths[key] ?? 160) + (event.key === 'ArrowRight' ? 10 : -10)
+                      );
+                    }
+                  }}
+                ></button>
+              </th>
+            {/each}<th scope="col">Actions</th>
+          </tr></thead
         >
         <tbody>
           {#each data.contacts as contact (contact.id)}
             <tr>
-              {#each fields.filter(([key]) => selected.includes(key)) as [key]}
-                <td class="contact-cell">
+              {#each orderedFields as [key] (key)}
+                <td class="contact-cell" title={String(cell(contact, key))}>
                   {#if key === 'name'}<a
                       class="v2-row-link v2-table-primary"
                       href={resolve(`/contacts/${contact.id}`)}>{contact.name}</a
@@ -260,6 +429,98 @@
 </div>
 
 <style>
+  .column-setting {
+    border: 1px solid var(--v2-line);
+    border-radius: 6px;
+    padding: 10px;
+    min-width: 0;
+  }
+  .column-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .width-label input {
+    width: 76px;
+    min-width: 0;
+    border: 1px solid var(--v2-line);
+    border-radius: 4px;
+    padding: 5px;
+  }
+  .table-hint {
+    padding: 0 24px;
+    font-size: 12px;
+  }
+  .contact-table-scroll {
+    overflow: auto;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0 24px 18px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+  }
+  .contact-grid {
+    table-layout: fixed;
+    border-collapse: collapse;
+    background: var(--v2-card);
+    font-size: 14px;
+  }
+  .contact-grid th,
+  .contact-grid td {
+    box-sizing: border-box;
+    padding: 10px 14px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-right: 1px solid var(--v2-line-soft);
+    border-bottom: 1px solid var(--v2-line-soft);
+  }
+  .contact-grid th {
+    position: relative;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--v2-slate);
+  }
+  .contact-grid th span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .contact-grid td {
+    height: 44px;
+  }
+  .contact-grid tbody tr:hover {
+    background: var(--v2-hover);
+  }
+  .contact-cell > a {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .contact-grid a {
+    color: inherit;
+  }
+  .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 9px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .resize-handle:hover,
+  .resize-handle:focus-visible {
+    background: var(--v2-slate);
+    opacity: 0.45;
+  }
+
   .card-dates {
     display: flex;
     flex-direction: column;
@@ -309,9 +570,9 @@
     font-size: 13px;
   }
   .contact-cell {
-    max-width: 300px;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .pagination {
     padding: 20px 24px;

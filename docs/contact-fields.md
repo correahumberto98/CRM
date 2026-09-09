@@ -37,3 +37,11 @@ The contact profile shows its original creation timestamp and creator, stage ent
 Contact saves and their audit writes run in the same transaction. Existing Activity RLS applies; no public write endpoint for history is added. Deleted-contact events remain in Activity, but a deleted contact no longer has a profile page. Older notes, files and creation information remain visible even if they predate detailed history. Prior modifications cannot be reconstructed when no historical record exists. The stage clock and creator are not writable through the contact form/API serializer.
 
 This tracks persisted CRM operations, not external phone calls or emails merely launched from a link; those need a note or a future communication integration. Direct SQL, QuerySet.update/bulk_update and bulk_create bypass Django save signals and must explicitly emit audit records if introduced for contact business operations. No full-history backfill is fabricated.
+
+## List column order and fixed widths
+
+Edit columns now presents selected columns in their display order, with left/right controls and a width input in pixels. Header edges support pointer/touch resizing, left/right arrow keys in 10-pixel steps, and double-click to fit the current content. Selection order and widths persist in local browser storage. Existing column selections are preserved.
+
+A newly displayed column is measured against its header and the currently loaded contact rows, then its width is saved. Loading another page or changing viewport size does not automatically resize it. Fit widths to content explicitly recalculates selected widths against the current page. Column widths have a 60-pixel minimum. Long content in manually narrowed cells is truncated with an ellipsis and remains accessible through its tooltip or by opening the contact.
+
+The contact list uses its own fixed-layout table styles instead of the app's mobile card transformation. Small screens retain the same column widths and use horizontal scrolling. Preferences are local to the browser and are not synchronized between devices.
