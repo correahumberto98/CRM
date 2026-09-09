@@ -1,4 +1,6 @@
-import { listContacts, FILTER_FIELDS } from '$lib/server/v2/contacts.js';
+import { fail } from '@sveltejs/kit';
+import { readableError } from '$lib/server/v2/form-errors.js';
+import { listContacts, updateContact, FILTER_FIELDS } from '$lib/server/v2/contacts.js';
 import { readFilters, buildFilterQuery } from '$lib/server/v2/filter-params.js';
 import { getOrgPeopleAndTeams, resolveMe } from '$lib/server/v2/org-people.js';
 import { getTags } from '$lib/server/v2/tags.js';
@@ -89,3 +91,26 @@ export async function load({ cookies, url, locals }) {
     meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
   };
 }
+
+/** @type {import('./$types').Actions} */
+export const actions = {
+  moveStage: async ({ cookies, request }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '');
+    const stage = String(form.get('stage') ?? '');
+    if (
+      !/^[0-9a-f-]{36}$/i.test(id) ||
+      !['LEAD', 'FOLLOW_UP', 'QUALIFIED', 'NOT_QUALIFIED', 'LOST'].includes(stage)
+    ) {
+      return fail(400, { error: 'Choose a valid contact and stage.' });
+    }
+    try {
+      await updateContact({ cookies }, id, { stage });
+      return { moved: true };
+    } catch (/** @type {any} */ err) {
+      return fail(400, {
+        error: readableError(err, 'Could not move this contact. Please try again.')
+      });
+    }
+  }
+};

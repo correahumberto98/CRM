@@ -1,7 +1,8 @@
 <script>
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
+  import { deserialize } from '$app/forms';
   let dragging = $state('');
   let insertionIndex = $state(-1);
   /** @type {HTMLCanvasElement | null} */
@@ -17,6 +18,89 @@
 
   /** @type {{ data: any }} */
   let { data } = $props();
+  let draggedContact = $state('');
+  let draggedStage = $state('');
+  let dropStage = $state('');
+  let movingContact = $state('');
+  let moveError = $state('');
+  let moveStatus = $state('');
+  function endContactDrag() {
+    draggedContact = '';
+    draggedStage = '';
+    dropStage = '';
+  }
+  /** @param {DragEvent} event @param {string} id @param {string} stage */
+  function startContactDrag(event, id, stage) {
+    if (movingContact) {
+      event.preventDefault();
+      return;
+    }
+    draggedContact = id;
+    draggedStage = stage;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', id);
+    }
+  }
+  /** @param {DragEvent} event @param {string} stage */
+  function overStage(event, stage) {
+    if (!draggedContact || movingContact || stage === 'UNASSIGNED' || stage === draggedStage)
+      return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    dropStage = stage;
+    const board = /** @type {HTMLElement} */ (event.currentTarget).closest('.contact-board');
+    if (board) {
+      const bounds = board.getBoundingClientRect();
+      if (event.clientX > bounds.right - 40) board.scrollLeft += 18;
+      else if (event.clientX < bounds.left + 40) board.scrollLeft -= 18;
+    }
+  }
+  /** @param {DragEvent} event @param {string} stage */
+  function dropContact(event, stage) {
+    event.preventDefault();
+    const id = draggedContact;
+    const source = draggedStage;
+    endContactDrag();
+    if (id && stage !== source && stage !== 'UNASSIGNED') void moveContact(id, stage);
+  }
+  /** @param {string} id @param {string} stage */
+  async function moveContact(id, stage) {
+    if (movingContact) return;
+    movingContact = id;
+    moveError = '';
+    moveStatus = 'Saving stage…';
+    let saved = false;
+    try {
+      const body = new FormData();
+      body.set('id', id);
+      body.set('stage', stage);
+      const response = await fetch('?/moveStage', {
+        method: 'POST',
+        body,
+        headers: { 'x-sveltekit-action': 'true' }
+      });
+      const result = deserialize(await response.text());
+      if (result.type !== 'success') {
+        moveError =
+          result.type === 'failure'
+            ? String(result.data?.error ?? 'Could not move this contact.')
+            : 'Could not move this contact. Refresh the page and try again.';
+        moveStatus = '';
+        return;
+      }
+      saved = true;
+      await invalidateAll();
+      moveStatus = `Contact moved to ${data.board.find((item) => item.value === stage)?.label ?? stage}.`;
+    } catch {
+      moveStatus = '';
+      moveError = saved
+        ? 'Stage saved, but the board could not refresh. Reload the page.'
+        : 'Could not confirm the change. Reload the page before trying again.';
+    } finally {
+      movingContact = '';
+    }
+  }
   const fields = [
     ['name', 'Name'],
     ['phone', 'Phone'],
@@ -379,16 +463,37 @@
 
 <div class="v2-scroll">
   {#if data.view === 'pipeline'}
+    <p class="table-hint v2-sub">Drag a contact to another stage to update it.</p>
+    {#if moveError}<p class="table-hint" role="alert">{moveError}</p>{/if}
+    <p class="table-hint v2-sub" role="status">{moveStatus}</p>
     <div class="contact-board" aria-label="Contacts by stage">
       {#each data.board as stage (stage.value)}
-        <section class="stage-column" aria-label={stage.label}>
+        <section
+          class="stage-column"
+          class:drop-target={dropStage === stage.value}
+          aria-label={stage.label}
+          ondragover={(event) => overStage(event, stage.value)}
+          ondrop={(event) => dropContact(event, stage.value)}
+          ondragleave={(event) => {
+            if (!event.currentTarget.contains(/** @type {Node | null} */ (event.relatedTarget)))
+              dropStage = '';
+          }}
+        >
           <header>
             <h2>{stage.label}</h2>
             <span class="v2-num">{count(stage.count)}</span>
           </header>
           {#each stage.contacts as contact (contact.id)}
-            <article class="contact-card">
-              <a class="card-name" href={resolve(`/contacts/${contact.id}`)}
+            <article
+              class="contact-card"
+              class:card-dragging={draggedContact === contact.id}
+              class:card-saving={movingContact === contact.id}
+              aria-busy={movingContact === contact.id}
+              draggable={!movingContact}
+              ondragstart={(event) => startContactDrag(event, contact.id, stage.value)}
+              ondragend={endContactDrag}
+            >
+              <a draggable="false" class="card-name" href={resolve(`/contacts/${contact.id}`)}
                 ><strong>{contact.name}</strong></a
               >
               <dl>
@@ -406,6 +511,26 @@
               {#if contact.do_not_call}<p class="v2-sub">Do not call</p>{/if}
               {#if !contact.is_active}<p class="v2-sub">Inactive</p>{/if}
               <a class="v2-btn" href={resolve(`/contacts/${contact.id}/edit`)}>Edit contact</a>
+              <label class="card-stage-picker"
+                >Stage
+                <select
+                  aria-label={`Stage for ${contact.name}`}
+                  value={stage.value}
+                  disabled={!!movingContact}
+                  onchange={(event) => {
+                    const target = event.currentTarget.value;
+                    event.currentTarget.value = stage.value;
+                    if (target !== stage.value) void moveContact(contact.id, target);
+                  }}
+                >
+                  {#if stage.value === 'UNASSIGNED'}<option value="UNASSIGNED" disabled
+                      >No stage</option
+                    >{/if}
+                  {#each data.board.filter((item) => item.value !== 'UNASSIGNED') as option}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+              </label>
               <div class="card-dates">
                 <span
                   class="stage-time"
@@ -565,6 +690,35 @@
 </div>
 
 <style>
+  .stage-column.drop-target {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+    background: #eff6ff;
+  }
+  .contact-card[draggable='true'] {
+    cursor: grab;
+  }
+  .contact-card.card-dragging {
+    opacity: 0.45;
+  }
+  .contact-card.card-saving {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .card-stage-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+  }
+  .card-stage-picker select {
+    min-width: 0;
+    max-width: 100%;
+    font: inherit;
+    padding: 4px;
+  }
+
   .contact-grid .drag-source {
     background: #eff6ff;
     opacity: 0.5;
@@ -732,6 +886,7 @@
     min-height: 400px;
   }
   .stage-column {
+    min-height: 300px;
     flex: 0 0 290px;
     background: #f5f5f3;
     border: 1px solid #dededb;
