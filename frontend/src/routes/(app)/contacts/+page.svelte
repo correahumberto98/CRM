@@ -176,11 +176,6 @@
             </article>
           {:else}<p class="v2-sub">No contacts on this page.</p>{/each}
           <footer>
-            <span class="v2-sub"
-              >{stage.contacts.length ? stage.offset + 1 : 0}–{stage.contacts.length
-                ? stage.offset + stage.contacts.length
-                : 0} of {stage.count}</span
-            >
             {#if stage.offset > 0}<a
                 class="v2-btn"
                 aria-label={`Previous ${stage.label} page`}
