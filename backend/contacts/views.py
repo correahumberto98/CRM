@@ -33,6 +33,7 @@ from common.serializer import (
 from common.utils import COUNTRIES, create_attachment
 from common.validators import date_param, payload_id_list, uuid_list_param
 from contacts import access, swagger_params
+from contacts.choices import COMMUNICATION_CHANNELS, CONTACT_SOURCES, CONTACT_STAGES
 from contacts.models import Contact
 from contacts.serializer import (
     ContactCommentEditSwaggerSerializer,
@@ -72,6 +73,9 @@ class ContactsListView(APIView, LimitOffsetPagination):
                 queryset = queryset.filter(
                     Q(first_name__icontains=name) | Q(last_name__icontains=name)
                 )
+            for field in ("source", "stage"):
+                if params.get(field):
+                    queryset = queryset.filter(**{field: params[field]})
             if params.get("city"):
                 # Contact keeps a flat `city`; there has been no related
                 # address object to traverse since the model was flattened, so
@@ -146,6 +150,9 @@ class ContactsListView(APIView, LimitOffsetPagination):
         context["offset"] = offset
         context["contact_obj_list"] = contacts
         context["countries"] = COUNTRIES
+        context["sources"] = CONTACT_SOURCES
+        context["stages"] = CONTACT_STAGES
+        context["communication_channels"] = COMMUNICATION_CHANNELS
         users = Profile.objects.filter(
             is_active=True, org=self.request.profile.org
         ).values("id", "user__email")
@@ -531,6 +538,9 @@ class ContactDetailView(APIView):
             "country": contact_obj.country,
         }
         context["countries"] = COUNTRIES
+        context["sources"] = CONTACT_SOURCES
+        context["stages"] = CONTACT_STAGES
+        context["communication_channels"] = COMMUNICATION_CHANNELS
         contact_content_type = ContentType.objects.get_for_model(Contact)
         comments = Comment.objects.filter(
             content_type=contact_content_type,

@@ -90,7 +90,13 @@ function toRow(contact) {
     id: contact.id,
     first_name: contact.first_name ?? '',
     last_name: contact.last_name ?? '',
-    name: [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim(),
+    name: contact.name ?? [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim(),
+    source: contact.source ?? '',
+    stage: contact.stage ?? '',
+    preferred_communication_channel: contact.preferred_communication_channel ?? '',
+    source_label: contact.source_label ?? '',
+    stage_label: contact.stage_label ?? '',
+    preferred_communication_channel_label: contact.preferred_communication_channel_label ?? '',
     title: contact.title ?? '',
     department: contact.department ?? '',
     // Free text, and frequently not the same company as `account`.
@@ -293,6 +299,10 @@ export async function addContactNote({ cookies }, id, comment, file = null) {
 
 /** Scalar fields the contact forms own. Everything else is server-derived. */
 export const EDITABLE_FIELDS = [
+  'name',
+  'source',
+  'stage',
+  'preferred_communication_channel',
   'first_name',
   'last_name',
   'email',
@@ -338,6 +348,12 @@ async function listChoices(cookies) {
   accounts.sort((/** @type {any} */ a, /** @type {any} */ b) => a.name.localeCompare(b.name));
 
   return {
+    sources: (contactsResponse.sources ?? []).map((pair) => ({ value: pair[0], label: pair[1] })),
+    stages: (contactsResponse.stages ?? []).map((pair) => ({ value: pair[0], label: pair[1] })),
+    communication_channels: (contactsResponse.communication_channels ?? []).map((pair) => ({
+      value: pair[0],
+      label: pair[1]
+    })),
     countries: (contactsResponse.countries ?? []).map((/** @type {any} */ pair) => ({
       value: pair[0],
       label: pair[1]
@@ -381,6 +397,10 @@ export async function getContactForEdit({ cookies }, id) {
     contact,
     ...choices,
     form: {
+      name: contact.name,
+      source: contact.source,
+      stage: contact.stage,
+      preferred_communication_channel: contact.preferred_communication_channel,
       first_name: contact.first_name,
       last_name: contact.last_name,
       email: contact.email,

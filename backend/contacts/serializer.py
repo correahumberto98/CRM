@@ -17,6 +17,13 @@ from contacts.models import Contact
 class ContactSerializer(serializers.ModelSerializer):
     """Serializer for reading Contact data"""
 
+    name = serializers.CharField(read_only=True)
+    source_label = serializers.CharField(source="get_source_display", read_only=True)
+    stage_label = serializers.CharField(source="get_stage_display", read_only=True)
+    preferred_communication_channel_label = serializers.CharField(
+        source="get_preferred_communication_channel_display", read_only=True
+    )
+
     teams = TeamsSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
     contact_attachment = AttachmentsSerializer(read_only=True, many=True)
@@ -58,11 +65,18 @@ class ContactSerializer(serializers.ModelSerializer):
         model = Contact
         fields = (
             "id",
+            "name",
+            "source_label",
+            "stage_label",
+            "preferred_communication_channel_label",
             # Core Contact Information
             "first_name",
             "last_name",
             "email",
             "phone",
+            "source",
+            "stage",
+            "preferred_communication_channel",
             # Professional Information
             "organization",
             "title",
@@ -100,6 +114,29 @@ class ContactSerializer(serializers.ModelSerializer):
 
 class CreateContactSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating Contact data"""
+
+    name = serializers.CharField(required=False, allow_blank=False, max_length=255)
+
+    def validate(self, attrs):
+        name = attrs.pop("name", None)
+        if name is not None:
+            if "first_name" in attrs or "last_name" in attrs:
+                raise serializers.ValidationError(
+                    {"name": "Send Name or separate names, not both."}
+                )
+            if self.instance is None or name != self.instance.name:
+                attrs["first_name"] = name
+                attrs["last_name"] = ""
+        errors = {}
+        if self.instance is None:
+            if not attrs.get("first_name", "").strip():
+                errors["name"] = "Name is required."
+            for field in ("phone", "source", "stage"):
+                if not attrs.get(field):
+                    errors[field] = "This field is required."
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
 
     def __init__(self, *args, **kwargs):
         request_obj = kwargs.pop("request_obj", None)
@@ -145,12 +182,23 @@ class CreateContactSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contact
+        extra_kwargs = {
+            "first_name": {"required": False},
+            "last_name": {"required": False, "allow_blank": True},
+            "phone": {"required": False, "allow_blank": False, "allow_null": False},
+            "source": {"required": False, "allow_blank": False, "allow_null": False},
+            "stage": {"required": False, "allow_blank": False, "allow_null": False},
+        }
         fields = (
+            "name",
             # Core Contact Information
             "first_name",
             "last_name",
             "email",
             "phone",
+            "source",
+            "stage",
+            "preferred_communication_channel",
             # Professional Information
             "organization",
             "title",

@@ -63,6 +63,7 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Source</th><th>Stage</th>
             <th>Account</th>
             <th>Reachable on</th>
             <th>Email</th>
@@ -83,11 +84,13 @@
                   <span>
                     <span class="v2-table-primary">{c.name}</span>
                     <span class="v2-table-secondary" style="display:block">
-                      {c.title || 'No title recorded'}
+                      {c.preferred_communication_channel_label || ''}
                     </span>
                   </span>
                 </a>
               </td>
+              <td>{c.source_label || '—'}</td>
+              <td>{c.stage_label || '—'}</td>
               <td>
                 <!--
                   The linked account, not the typed-in company name.

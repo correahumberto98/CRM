@@ -1,0 +1,168 @@
+<script>
+  import { enhance } from '$app/forms';
+  import { untrack } from 'svelte';
+  import { resolve } from '$app/paths';
+
+  /** @type {{data:any, result?:any, editing?:boolean}} */
+  let { data, result = null, editing = false } = $props();
+  let values = $state(
+    untrack(() => ({
+      name: '',
+      phone: '',
+      email: '',
+      source: '',
+      stage: '',
+      address_line: '',
+      city: '',
+      postcode: '',
+      state: '',
+      preferred_communication_channel: '',
+      description: '',
+      ...(data.form ?? {}),
+      ...(result?.values ?? {})
+    }))
+  );
+  let saving = $state(false);
+  const textFields = /** @type {const} */ ([
+    { key: 'name', label: 'Name', required: true, type: 'text', max: 255, autocomplete: 'name' },
+    { key: 'phone', label: 'Phone', required: true, type: 'tel', max: 25, autocomplete: 'tel' },
+    {
+      key: 'email',
+      label: 'Email',
+      required: false,
+      type: 'email',
+      max: 254,
+      autocomplete: 'email'
+    }
+  ]);
+  const addressFields = /** @type {const} */ ([
+    { key: 'address_line', label: 'Address', autocomplete: 'street-address', max: 255 },
+    { key: 'city', label: 'City', autocomplete: 'address-level2', max: 255 },
+    { key: 'postcode', label: 'Zip Code', autocomplete: 'postal-code', max: 64 },
+    { key: 'state', label: 'State', autocomplete: 'address-level1', max: 255 }
+  ]);
+</script>
+
+<form
+  class="v2-form"
+  method="POST"
+  action={editing ? '?/save' : '?/create'}
+  use:enhance={() => {
+    saving = true;
+    return async ({ update }) => {
+      try {
+        await update({ reset: false });
+      } finally {
+        saving = false;
+      }
+    };
+  }}
+>
+  {#if result?.error}<p class="v2-error" role="alert">{result.error}</p>{/if}
+  <p class="v2-sub" style="margin-bottom:20px">Fields marked * are required.</p>
+  <div class="fields">
+    {#each textFields as field (field.key)}
+      <div class="v2-field">
+        <label for={'contact-' + field.key}>{field.label}{field.required ? ' *' : ''}</label>
+        <input
+          id={'contact-' + field.key}
+          class="v2-input"
+          name={field.key}
+          type={field.type}
+          required={field.required}
+          maxlength={field.max}
+          autocomplete={field.autocomplete}
+          bind:value={values[field.key]}
+        />
+      </div>
+    {/each}
+    <div class="v2-field">
+      <label for="contact-source">Source *</label>
+      <select
+        id="contact-source"
+        name="source"
+        class="v2-input"
+        required
+        bind:value={values.source}
+      >
+        <option value="">Select source</option>
+        {#each data.sources ?? [] as option}<option value={option.value}>{option.label}</option
+          >{/each}
+      </select>
+    </div>
+    <div class="v2-field">
+      <label for="contact-stage">Stage *</label>
+      <select id="contact-stage" name="stage" class="v2-input" required bind:value={values.stage}>
+        <option value="">Select stage</option>
+        {#each data.stages ?? [] as option}<option value={option.value}>{option.label}</option
+          >{/each}
+      </select>
+    </div>
+    {#each addressFields as field (field.key)}
+      <div class="v2-field">
+        <label for={'contact-' + field.key}>{field.label}</label>
+        <input
+          id={'contact-' + field.key}
+          class="v2-input"
+          name={field.key}
+          maxlength={field.max}
+          autocomplete={field.autocomplete}
+          bind:value={values[field.key]}
+        />
+      </div>
+    {/each}
+    <div class="v2-field">
+      <label for="contact-channel">Preferred Communication Channel</label>
+      <select
+        id="contact-channel"
+        name="preferred_communication_channel"
+        class="v2-input"
+        bind:value={values.preferred_communication_channel}
+      >
+        <option value="">Not specified</option>
+        {#each data.communication_channels ?? [] as option}<option value={option.value}
+            >{option.label}</option
+          >{/each}
+      </select>
+    </div>
+  </div>
+  <div class="v2-field">
+    <label for="contact-notes">Notes</label>
+    <textarea
+      id="contact-notes"
+      class="v2-input"
+      name="description"
+      rows="5"
+      bind:value={values.description}></textarea>
+  </div>
+  {#if !editing && data.defaults?.account}
+    <input type="hidden" name="account" value={data.defaults.account} />
+  {/if}
+  <div class="actions">
+    <button class="v2-btn v2-btn-primary" type="submit" disabled={saving}>
+      {saving ? 'Saving…' : editing ? 'Save contact' : 'Create contact'}
+    </button>
+    <a class="v2-btn" href={resolve(editing ? `/contacts/${data.contact.id}` : '/contacts')}
+      >Cancel</a
+    >
+  </div>
+</form>
+
+<style>
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 18px;
+  }
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    padding-bottom: 40px;
+  }
+  @media (max-width: 720px) {
+    .fields {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

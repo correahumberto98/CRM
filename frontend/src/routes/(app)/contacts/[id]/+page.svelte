@@ -181,7 +181,7 @@
     {/if}
   {/snippet}
   {#snippet sub()}
-    {[contact.title, contact.department].filter(Boolean).join(' · ') || 'No title recorded'}
+    {[contact.stage_label, contact.source_label].filter(Boolean).join(' · ') || 'Contact details'}
     {#if contact.updated_at}
       · updated {relativeDays(contact.updated_at)}
     {/if}
@@ -453,10 +453,24 @@
   <aside class="v2-rail">
     <div class="v2-label v2-rail-head">Contact</div>
     <dl class="v2-kv">
-      <dt>Title</dt>
-      <dd>{contact.title || '—'}</dd>
-      <dt>Department</dt>
-      <dd>{contact.department || '—'}</dd>
+      <dt>Name</dt>
+      <dd>{contact.name}</dd>
+      <dt>Source</dt>
+      <dd>{contact.source_label || 'Not specified'}</dd>
+      <dt>Stage</dt>
+      <dd>{contact.stage_label || 'Not specified'}</dd>
+      <dt>Preferred Communication Channel</dt>
+      <dd>{contact.preferred_communication_channel_label || 'Not specified'}</dd>
+      <dt>Address</dt>
+      <dd>{contact.address_line || '—'}</dd>
+      <dt>City</dt>
+      <dd>{contact.city || '—'}</dd>
+      <dt>Zip Code</dt>
+      <dd>{contact.postcode || '—'}</dd>
+      <dt>State</dt>
+      <dd>{contact.state || '—'}</dd>
+      <dt>Notes</dt>
+      <dd style="white-space:pre-wrap">{contact.description || '—'}</dd>
       <dt>Account</dt>
       <dd>
         {#if contact.account}

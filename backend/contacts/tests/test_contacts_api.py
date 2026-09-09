@@ -93,6 +93,9 @@ class TestContactListView:
     def test_create_contact(self, mock_email, admin_client):
         """Admin can create a new contact via POST."""
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Charlie",
             "last_name": "Brown",
             "email": "charlie@example.com",
@@ -110,6 +113,9 @@ class TestContactListView:
         making is the one about the database.
         """
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Nope",
             "last_name": "User",
             "email": "nope@example.com",
@@ -137,6 +143,8 @@ class TestContactListView:
     def test_create_contact_with_all_fields(self, mock_email, admin_client, org_a):
         """Creating a contact with all optional fields populates them correctly."""
         payload = {
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Full",
             "last_name": "Contact",
             "email": "full@example.com",
@@ -170,6 +178,9 @@ class TestContactListView:
         _set_rls(org_a)
         tag = Tags.objects.create(name="Partner", org=org_a)
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Tagged",
             "last_name": "Contact",
             "email": "tagged@example.com",
@@ -186,6 +197,9 @@ class TestContactListView:
     ):
         """Creating a contact with assigned_to sets assignees."""
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Assigned",
             "last_name": "Contact",
             "email": "assignedcontact@example.com",
@@ -206,6 +220,9 @@ class TestContactListView:
             name="Support Team", created_by=admin_user, org=org_a
         )
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Teamed",
             "last_name": "Contact",
             "email": "teamedcontact@example.com",
@@ -573,7 +590,12 @@ class TestContactDetailView:
         )
         response = user_client.patch(
             _detail_url(contact.pk),
-            {"first_name": "Hacked"},
+            {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
+                "first_name": "Hacked",
+            },
             format="json",
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -846,6 +868,9 @@ class TestContactCreateM2MHandling:
             name="StringTeamC", created_by=admin_user, org=org_a
         )
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "StringTeam",
             "last_name": "Contact",
             "email": "stringteamc@example.com",
@@ -862,6 +887,9 @@ class TestContactCreateM2MHandling:
     ):
         """assigned_to passed as JSON string are parsed (line 176)."""
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "StringAssign",
             "last_name": "Contact",
             "email": "stringassignc@example.com",
@@ -880,6 +908,9 @@ class TestContactCreateM2MHandling:
         _set_rls(org_a)
         tag = Tags.objects.create(name="StringTagC", org=org_a)
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "StringTag",
             "last_name": "Contact",
             "email": "stringtagc@example.com",
@@ -896,6 +927,9 @@ class TestContactCreateM2MHandling:
     ):
         """Email notification is sent on create (lines 201-206)."""
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "EmailNotify",
             "last_name": "Contact",
             "email": "emailnotifyc@example.com",
@@ -914,6 +948,9 @@ class TestContactCreateM2MHandling:
             "contact_doc.txt", b"contact file content", content_type="text/plain"
         )
         payload = {
+            "phone": "3055550199",
+            "source": "ORGANIC",
+            "stage": "LEAD",
             "first_name": "Attached",
             "last_name": "Contact",
             "email": "attachedc@example.com",
@@ -1035,6 +1072,9 @@ class TestContactDetailUpdateM2M:
         response = user_client.put(
             _detail_url(contact.pk),
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Hacked",
                 "last_name": "Contact",
                 "email": "forbidupdate@example.com",

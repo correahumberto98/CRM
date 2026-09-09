@@ -74,6 +74,9 @@ class TestContactCreateWithCustomFields:
         response = admin_client.post(
             CONTACTS_LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Jane",
                 "last_name": "Doe",
                 "email": "jane.cf@example.com",
@@ -90,6 +93,9 @@ class TestContactCreateWithCustomFields:
         response = admin_client.post(
             CONTACTS_LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Jane",
                 "last_name": "Doe",
                 "email": "jane.bad@example.com",
@@ -106,6 +112,9 @@ class TestContactCreateWithCustomFields:
         response = admin_client.post(
             CONTACTS_LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Jane",
                 "last_name": "Doe",
                 "email": "jane.unk@example.com",
@@ -122,6 +131,9 @@ class TestContactCreateWithCustomFields:
         response = admin_client.post(
             CONTACTS_LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Jane",
                 "last_name": "Doe",
                 "email": "jane.req@example.com",

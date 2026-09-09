@@ -441,6 +441,9 @@ class TestAccountLink:
         response = admin_client.post(
             LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Marcus",
                 "last_name": "Webb",
                 "email": "marcus@example.com",
@@ -457,7 +460,14 @@ class TestAccountLink:
     def test_create_returns_the_id_it_made(self, _email, admin_client):
         response = admin_client.post(
             LIST_URL,
-            {"first_name": "Ada", "last_name": "Nolan", "email": "ada@example.com"},
+            {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
+                "first_name": "Ada",
+                "last_name": "Nolan",
+                "email": "ada@example.com",
+            },
             format="json",
         )
         assert response.status_code == status.HTTP_200_OK
@@ -470,6 +480,9 @@ class TestAccountLink:
         response = admin_client.post(
             LIST_URL,
             {
+                "phone": "3055550199",
+                "source": "ORGANIC",
+                "stage": "LEAD",
                 "first_name": "Nope",
                 "last_name": "Nope",
                 "email": "nope@example.com",

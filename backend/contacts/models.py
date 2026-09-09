@@ -7,6 +7,7 @@ from common.base import SAMPLE_DATA_HELP_TEXT, AssignableMixin, BaseModel
 from common.models import Org, Profile, Tags, Teams
 from common.utils import COUNTRIES
 from common.validators import flexible_phone_validator
+from contacts.choices import COMMUNICATION_CHANNELS, CONTACT_SOURCES, CONTACT_STAGES
 
 
 class Contact(AssignableMixin, BaseModel):
@@ -17,7 +18,7 @@ class Contact(AssignableMixin, BaseModel):
 
     # Core Contact Information
     first_name = models.CharField(_("First name"), max_length=255)
-    last_name = models.CharField(_("Last name"), max_length=255)
+    last_name = models.CharField(_("Last name"), max_length=255, blank=True, default="")
     email = models.EmailField(_("Email"), blank=True, null=True)
     phone = models.CharField(
         _("Phone"),
@@ -26,6 +27,21 @@ class Contact(AssignableMixin, BaseModel):
         blank=True,
         validators=[flexible_phone_validator],
     )
+
+    # Nullable for pre-existing and automatically imported records with unknown data.
+    source = models.CharField(
+        max_length=32, choices=CONTACT_SOURCES, blank=True, null=True
+    )
+    stage = models.CharField(
+        max_length=32, choices=CONTACT_STAGES, blank=True, null=True
+    )
+    preferred_communication_channel = models.CharField(
+        max_length=16, choices=COMMUNICATION_CHANNELS, blank=True, null=True
+    )
+
+    @property
+    def name(self):
+        return " ".join(filter(None, [self.first_name, self.last_name])).strip()
 
     # Professional Information
     organization = models.CharField(_("Company"), max_length=255, blank=True, null=True)
