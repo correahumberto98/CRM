@@ -106,3 +106,22 @@ def test_choices_and_contact_filters_are_org_scoped(
     assert [c["name"] for c in response.data["results"]] == ["Visible"]
     assert len(response.data["stages"]) == 5
     assert len(response.data["communication_channels"]) == 3
+
+
+@pytest.mark.django_db
+def test_pipeline_unassigned_and_pagination_do_not_lose_contacts(
+    admin_client, org_a, org_b
+):
+    Contact.objects.create(first_name="Legacy", org=org_a)
+    Contact.objects.create(first_name="Empty", stage="", org=org_a)
+    Contact.objects.create(first_name="Private legacy", org=org_b)
+    for name in ("Lead one", "Lead two"):
+        Contact.objects.create(first_name=name, stage="LEAD", org=org_a)
+    response = admin_client.get("/api/contacts/?stage=UNASSIGNED")
+    assert response.data["count"] == 2
+    assert {c["name"] for c in response.data["results"]} == {"Legacy", "Empty"}
+    first = admin_client.get("/api/contacts/?stage=LEAD&limit=1&offset=0").data
+    second = admin_client.get("/api/contacts/?stage=LEAD&limit=1&offset=1").data
+    assert first["count"] == second["count"] == 2
+    assert first["results"][0]["id"] != second["results"][0]["id"]
+    assert first["results"][0]["stage"] == second["results"][0]["stage"] == "LEAD"

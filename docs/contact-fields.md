@@ -19,3 +19,11 @@ docker compose exec -T backend python manage.py migrate --noinput
 ```
 
 Migrations 0014 and 0015 add the fields and finalize the selected catalogs. No contact rows are deleted or backfilled. Organization scoping and existing RLS policies remain in place.
+
+## Contact views
+
+The Contacts module offers List and Pipeline views. List starts with Name, Phone, Email, Source, Stage and Contact Owner. Edit columns can show or hide all contact form fields plus account, status and timestamps; at least one data column stays selected. Open/Edit actions remain available even when Name is hidden. Preferences are saved in this browser, not synchronized across devices.
+
+Pipeline uses the contact stage catalog returned by the API. Each card shows name, phone, email, source, owner and preferred channel. Contacts without a recognized stage appear under No stage. Editing a contact's Stage changes its column on the next board load. Deal pipelines are independent.
+
+Both views retain the existing contact filters and organization permissions. List uses 25 contacts per page; each pipeline column independently fetches 25 contacts and its own total, with Previous/Next controls. The board does not infer column totals from the first page of the contact list. The API's `stage=UNASSIGNED` filter includes null, blank and unrecognized stages.

@@ -75,7 +75,12 @@ class ContactsListView(APIView, LimitOffsetPagination):
                 )
             for field in ("source", "stage"):
                 if params.get(field):
-                    queryset = queryset.filter(**{field: params[field]})
+                    if field == "stage" and params[field] == "UNASSIGNED":
+                        queryset = queryset.exclude(
+                            stage__in=[value for value, _ in CONTACT_STAGES]
+                        )
+                    else:
+                        queryset = queryset.filter(**{field: params[field]})
             if params.get("city"):
                 # Contact keeps a flat `city`; there has been no related
                 # address object to traverse since the model was flattened, so

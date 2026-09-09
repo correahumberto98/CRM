@@ -145,6 +145,10 @@ export async function listContacts({ cookies }, params) {
 
   return {
     results: rows,
+    stages: (response.stages ?? []).map((/** @type {any} */ pair) => ({
+      value: pair[0],
+      label: pair[1]
+    })),
     totals: {
       count: response.count ?? rows.length,
       active: response.active_count ?? rows.length,
